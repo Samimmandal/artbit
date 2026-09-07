@@ -1,110 +1,116 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
-export default function AdminDashboard() {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [darkMode, setDarkMode] = useState(false)
+export default function AdminDashboardPage() {
   const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null)
+  const [darkMode, setDarkMode] = useState(true)
 
   useEffect(() => {
-    const saved = localStorage.getItem('artbit-theme')
-    if (saved === 'dark') setDarkMode(true)
-    checkUser()
+    const saved = localStorage.getItem('artbit-admin-theme')
+    if (saved === 'light') setDarkMode(false)
+    checkAuth()
   }, [])
 
-  const checkUser = async () => {
+  const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      router.push('/admin/login')
+      router.push('/admin')
       return
     }
     setUser(user)
     setLoading(false)
   }
 
-  const handleLogout = async () => {
+  const logout = async () => {
     await supabase.auth.signOut()
-    router.push('/admin/login')
+    router.push('/admin')
   }
 
-  const bg = darkMode ? 'bg-[#1b1b18]' : 'bg-[#f2ede1]'
-  const text = darkMode ? 'text-[#f2ede1]' : 'text-[#1b1b18]'
-  const card = darkMode ? 'bg-[#252522] border-[#f2ede1]/15' : 'bg-white border-[#1b1b18]/15'
-  const headerBg = darkMode ? 'bg-[#252522]' : 'bg-white'
-  const muted = darkMode ? 'text-gray-400' : 'text-gray-500'
+  const toggleTheme = () => {
+    const next = !darkMode
+    setDarkMode(next)
+    localStorage.setItem('artbit-admin-theme', next ? 'dark' : 'light')
+  }
+
+  const bg = darkMode ? 'bg-[#0a0a0a]' : 'bg-[#f2ede1]'
+  const text = darkMode ? 'text-white' : 'text-[#000000]'
+  const muted = darkMode ? 'text-white/50' : 'text-[#333]/70'
+  const card = darkMode
+    ? 'border border-white/10 bg-[#111] hover:border-white/25'
+    : 'border border-black/10 bg-white hover:border-black/25'
+  const headerBorder = darkMode ? 'border-white/10' : 'border-black/10'
 
   if (loading) {
     return (
-      <div className={`min-h-screen ${bg} flex items-center justify-center`}>
-        <p className={`font-mono text-sm ${text}`}>Loading...</p>
+      <div className={`min-h-screen ${bg} ${text} flex items-center justify-center font-mono text-sm`}>
+        Loading...
       </div>
     )
   }
 
+  const cards = [
+    { href: '/admin/products', label: 'Products' },
+    { href: '/admin/orders', label: 'Orders' },
+    { href: '/admin/coupons', label: 'Coupons' },
+    { href: '/admin/custom-requests', label: 'Custom Requests' },
+    { href: '/admin/users', label: 'Users' },
+    { href: '/admin/site-content', label: 'Site Content' },
+    { href: '/admin/your-art', label: 'Your Art' }
+  ]
+
   return (
     <div className={`min-h-screen ${bg} ${text}`}>
-      <header className={`border-b ${darkMode ? 'border-[#f2ede1]/15' : 'border-[#1b1b18]/20'} ${headerBg}`}>
-        <div className="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="font-black text-lg uppercase tracking-tight">Artbit</span>
-            <span className={`text-xs font-mono ${muted}`}>Admin</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className={`text-xs ${muted} hidden sm:block`}>{user?.email}</span>
-            <button
-              onClick={handleLogout}
-              className={`text-xs font-mono uppercase border px-3 py-1.5 transition ${
-                darkMode
-                  ? 'border-[#f2ede1]/40 hover:bg-[#f2ede1] hover:text-[#1b1b18]'
-                  : 'border-[#1b1b18] hover:bg-[#1b1b18] hover:text-white'
-              }`}
-            >
-              Logout
-            </button>
-          </div>
+      <header className={`border-b ${headerBorder} px-5 sm:px-8 py-4 flex items-center justify-between gap-3`}>
+        <div className="flex items-center gap-3">
+          <span className="font-black uppercase tracking-tight text-lg">Artbit</span>
+          <span className={`text-[10px] font-mono uppercase ${muted}`}>Admin</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className={`text-xs font-mono hidden sm:block ${muted}`}>
+            {user?.email}
+          </span>
+          <button
+            onClick={logout}
+            className={`text-[10px] font-mono uppercase border px-3 py-1.5 ${
+              darkMode ? 'border-white/20' : 'border-black/20'
+            }`}
+          >
+            Logout
+          </button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-5 py-10">
-        <h1 className="text-3xl font-black uppercase mb-8">Dashboard</h1>
+      <main className="max-w-4xl mx-auto px-5 sm:px-8 py-10">
+        <h1 className="text-2xl font-black uppercase mb-8 tracking-tight">Dashboard</h1>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Link href="/admin/products" className={`${card} border p-6 hover:opacity-90 transition block`}>
-            <p className={`text-[11px] font-mono uppercase ${muted} mb-1`}>Manage</p>
-            <h2 className="text-xl font-bold">Products</h2>
-          </Link>
-
-          <Link href="/admin/orders" className={`${card} border p-6 hover:opacity-90 transition block`}>
-            <p className={`text-[11px] font-mono uppercase ${muted} mb-1`}>Manage</p>
-            <h2 className="text-xl font-bold">Orders</h2>
-          </Link>
-
-          <Link href="/admin/coupons" className={`${card} border p-6 hover:opacity-90 transition block`}>
-            <p className={`text-[11px] font-mono uppercase ${muted} mb-1`}>Manage</p>
-            <h2 className="text-xl font-bold">Coupons</h2>
-          </Link>
-
-          <Link href="/admin/custom-requests" className={`${card} border p-6 hover:opacity-90 transition block`}>
-            <p className={`text-[11px] font-mono uppercase ${muted} mb-1`}>Manage</p>
-            <h2 className="text-xl font-bold">Custom Requests</h2>
-          </Link>
-
-          <Link href="/admin/users" className={`${card} border p-6 hover:opacity-90 transition block`}>
-            <p className={`text-[11px] font-mono uppercase ${muted} mb-1`}>Manage</p>
-            <h2 className="text-xl font-bold">Users</h2>
-          </Link>
-
-          <Link href="/admin/content" className={`${card} border p-6 hover:opacity-90 transition block`}>
-            <p className={`text-[11px] font-mono uppercase ${muted} mb-1`}>Manage</p>
-            <h2 className="text-xl font-bold">Site Content</h2>
-          </Link>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {cards.map((c) => (
+            <Link
+              key={c.href}
+              href={c.href}
+              className={`block p-6 transition ${card}`}
+            >
+              <p className={`text-[10px] font-mono uppercase mb-1 ${muted}`}>Manage</p>
+              <p className="text-lg font-semibold">{c.label}</p>
+            </Link>
+          ))}
         </div>
       </main>
+
+      <button
+        onClick={toggleTheme}
+        className={`fixed bottom-5 right-5 text-[10px] font-mono uppercase border px-3 py-2 ${
+          darkMode ? 'border-white/20 text-white/70' : 'border-black/20 text-black/70'
+        }`}
+      >
+        {darkMode ? 'Light' : 'Dark'}
+      </button>
     </div>
   )
 }
