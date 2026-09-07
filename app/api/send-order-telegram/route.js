@@ -16,13 +16,11 @@ export async function POST(req) {
       items = []
     } = body
 
-    // ↓↓↓ এখানে টোকেন ও Chat ID বসাও ↓↓↓
-    const token = process.env.TELEGRAM_BOT_TOKEN || '8952395629:AAHAGZExvnX4_aRtTNiipf2Kk8tilX6AEUg'
-    const chatId = process.env.TELEGRAM_CHAT_ID || '198776720'
-    // ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
+    const token = process.env.TELEGRAM_BOT_TOKEN
+    const chatId = process.env.TELEGRAM_CHAT_ID
 
-    if (!token || token.includes('PASTE_') || !chatId || String(chatId).includes('PASTE_')) {
-      console.error('Telegram token or chat id missing')
+    if (!token || !chatId) {
+      console.error('TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing in env')
       return NextResponse.json({ error: 'Telegram not configured' }, { status: 500 })
     }
 
