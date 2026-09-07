@@ -113,7 +113,7 @@ export default function ProductDetails() {
     return true
   }
 
-    const addToCart = async () => {
+  const addToCart = async () => {
     if (!requireLogin()) return
     setCartLoading(true)
     const { data: { user: u } } = await supabase.auth.getUser()
@@ -128,11 +128,8 @@ export default function ProductDetails() {
       quantity: 1,
       size: selectedSize || 'M'
     }, { onConflict: 'user_id,product_id,size' })
-    if (error) {
-      alert('Cart error: ' + error.message)
-    } else {
-      alert('Added to cart!')
-    }
+    if (error) alert('Cart error: ' + error.message)
+    else alert('Added to cart!')
     setCartLoading(false)
   }
 
@@ -149,11 +146,8 @@ export default function ProductDetails() {
       user_id: u.id,
       product_id: Number(id)
     }, { onConflict: 'user_id,product_id' })
-    if (error) {
-      alert('Wishlist error: ' + error.message)
-    } else {
-      alert('Added to wishlist!')
-    }
+    if (error) alert('Wishlist error: ' + error.message)
+    else alert('Added to wishlist!')
     setWishLoading(false)
   }
 
@@ -227,12 +221,45 @@ export default function ProductDetails() {
   }
 
   const loadRazorpayScript = () => new Promise((resolve) => {
+    if (typeof window !== 'undefined' && window.Razorpay) {
+      resolve(true)
+      return
+    }
     const script = document.createElement('script')
     script.src = 'https://checkout.razorpay.com/v1/checkout.js'
     script.onload = () => resolve(true)
     script.onerror = () => resolve(false)
     document.body.appendChild(script)
   })
+
+  const notifyTelegram = async (order, paymentMethod, status, totalAmount) => {
+    try {
+      await fetch('/api/send-order-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          customer_name: orderForm.customer_name,
+          customer_email: orderForm.customer_email,
+          customer_phone: orderForm.customer_phone,
+          address: orderForm.address,
+          total_amount: totalAmount,
+          payment_method: paymentMethod,
+          status,
+          coupon: appliedCoupon?.code || null,
+          items: [{
+            product_id: product.id,
+            name: product.name,
+            size: selectedSize || 'M',
+            quantity: orderForm.quantity || 1,
+            price: Number(product.price || 0)
+          }]
+        })
+      })
+    } catch (e) {
+      console.error('Telegram notify failed', e)
+    }
+  }
 
   const saveOrder = async (status, totalAmount, paymentMethod) => {
     const { data: order, error } = await supabase
@@ -258,6 +285,7 @@ export default function ProductDetails() {
       price: product.price,
       size: selectedSize
     }])
+    await notifyTelegram(order, paymentMethod, status, totalAmount)
     return order
   }
 
@@ -487,7 +515,6 @@ export default function ProductDetails() {
               )}
             </div>
             <p className={`text-xs ${muted} mb-1`}>Inclusive of all taxes</p>
-            {compare && compare > price && <p className="text-sm text-[#2c6660] mb-3">Get it for as low as ₹{price.toLocaleString('en-IN')}</p>}
             {product.offer_text && <p className="text-xs font-mono uppercase text-[#bd4632] mb-4">{product.offer_text}</p>}
             {product.fabric && <p className={`text-sm mb-4 ${muted}`}><span className="font-semibold text-current">Fabric:</span> {product.fabric}</p>}
             {product.description && <p className={`${muted} text-sm leading-relaxed mb-6`}>{product.description}</p>}
@@ -545,19 +572,6 @@ export default function ProductDetails() {
               </div>
               {pinMsg && <p className={`text-xs mt-2 ${muted}`}>{pinMsg}</p>}
             </div>
-
-            {(product.fit || product.neck || product.sleeve || product.hemline || product.design_note) && (
-              <div className={`${card} border p-4 mb-5`}>
-                <p className="text-xs font-mono uppercase mb-3 font-semibold">Product Highlights</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  {product.design_note && <p><span className={muted}>Design:</span> {product.design_note}</p>}
-                  {product.fit && <p><span className={muted}>Fit:</span> {product.fit}</p>}
-                  {product.neck && <p><span className={muted}>Neck:</span> {product.neck}</p>}
-                  {product.sleeve && <p><span className={muted}>Sleeve:</span> {product.sleeve}</p>}
-                  {product.hemline && <p><span className={muted}>Hemline:</span> {product.hemline}</p>}
-                </div>
-              </div>
-            )}
 
             <button type="button" onClick={() => setShowReturnPolicy(true)} className={`${card} border p-4 mb-5 w-full text-left hover:opacity-90 transition`}>
               <p className="text-xs font-mono uppercase font-semibold mb-1">7 Day Return & Exchange →</p>

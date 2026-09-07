@@ -72,11 +72,7 @@ export default function CheckoutPage() {
     }
 
     const ids = [...new Set(cartRows.map(r => r.product_id))]
-    const { data: products } = await supabase
-      .from('products')
-      .select('*')
-      .in('id', ids)
-
+    const { data: products } = await supabase.from('products').select('*').in('id', ids)
     const map = {}
     ;(products || []).forEach(p => { map[p.id] = p })
 
@@ -144,6 +140,35 @@ export default function CheckoutPage() {
     await supabase.from('cart').delete().eq('user_id', userId)
   }
 
+  const notifyTelegram = async (order, paymentMethod, status) => {
+    try {
+      await fetch('/api/send-order-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          customer_name: form.customer_name,
+          customer_email: form.customer_email,
+          customer_phone: form.customer_phone,
+          address: form.address,
+          total_amount: total,
+          payment_method: paymentMethod,
+          status,
+          coupon: appliedCoupon?.code || null,
+          items: items.map(item => ({
+            product_id: item.product_id,
+            name: item.products?.name,
+            size: item.size || 'M',
+            quantity: item.quantity || 1,
+            price: Number(item.products?.price || 0)
+          }))
+        })
+      })
+    } catch (e) {
+      console.error('Telegram notify failed', e)
+    }
+  }
+
   const saveOrder = async (status, paymentMethod) => {
     const { data: order, error } = await supabase
       .from('orders')
@@ -175,6 +200,7 @@ export default function CheckoutPage() {
       await supabase.from('order_items').insert(orderItems)
     }
 
+    await notifyTelegram(order, paymentMethod, status)
     if (user?.id) await clearCart(user.id)
     return order
   }
@@ -313,7 +339,6 @@ export default function CheckoutPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Order summary */}
             <div className={`${card} border p-5 space-y-3`}>
               <p className="text-xs font-mono uppercase font-semibold mb-2">Order summary</p>
               {items.map(item => (
@@ -347,7 +372,6 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* Coupon */}
             <div className={`${card} border p-4`}>
               <p className="text-xs font-mono uppercase font-semibold mb-2">Coupon</p>
               {appliedCoupon ? (
@@ -363,63 +387,24 @@ export default function CheckoutPage() {
                     placeholder="e.g. ARTBIT10"
                     className={`flex-1 border px-3 py-2 text-sm outline-none bg-transparent uppercase ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`}
                   />
-                  <button type="button" onClick={applyCoupon} className="bg-[#000000] text-white px-4 py-2 text-xs font-mono uppercase">
-                    Apply
-                  </button>
+                  <button type="button" onClick={applyCoupon} className="bg-[#000000] text-white px-4 py-2 text-xs font-mono uppercase">Apply</button>
                 </div>
               )}
               {couponError && <p className="text-xs text-red-600 mt-1">{couponError}</p>}
             </div>
 
-            {/* Address form */}
             <form className={`${card} border p-5 space-y-4`}>
               <p className="text-xs font-mono uppercase font-semibold mb-1">Delivery details</p>
-              <input
-                required
-                placeholder="Full Name *"
-                value={form.customer_name}
-                onChange={e => setForm({ ...form, customer_name: e.target.value })}
-                className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`}
-              />
-              <input
-                required
-                type="email"
-                placeholder="Email *"
-                value={form.customer_email}
-                onChange={e => setForm({ ...form, customer_email: e.target.value })}
-                className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`}
-              />
-              <input
-                required
-                placeholder="Phone *"
-                value={form.customer_phone}
-                onChange={e => setForm({ ...form, customer_phone: e.target.value })}
-                className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`}
-              />
-              <textarea
-                required
-                placeholder="Full delivery address *"
-                value={form.address}
-                onChange={e => setForm({ ...form, address: e.target.value })}
-                rows={3}
-                className={`w-full border p-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`}
-              />
+              <input required placeholder="Full Name *" value={form.customer_name} onChange={e => setForm({ ...form, customer_name: e.target.value })} className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
+              <input required type="email" placeholder="Email *" value={form.customer_email} onChange={e => setForm({ ...form, customer_email: e.target.value })} className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
+              <input required placeholder="Phone *" value={form.customer_phone} onChange={e => setForm({ ...form, customer_phone: e.target.value })} className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
+              <textarea required placeholder="Full delivery address *" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} rows={3} className={`w-full border p-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
 
               <div className="grid grid-cols-1 gap-2 pt-2">
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={handlePayOnline}
-                  className="w-full bg-[#2c6660] text-white py-3.5 font-mono text-xs uppercase tracking-wider disabled:opacity-50"
-                >
+                <button type="button" disabled={submitting} onClick={handlePayOnline} className="w-full bg-[#2c6660] text-white py-3.5 font-mono text-xs uppercase tracking-wider disabled:opacity-50">
                   {submitting ? 'Processing...' : `Pay Online ₹${total.toLocaleString('en-IN')}`}
                 </button>
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={handleCOD}
-                  className={`w-full border py-3.5 font-mono text-xs uppercase tracking-wider disabled:opacity-50 ${darkMode ? 'border-[#ffffff]/40' : 'border-[#000000]'}`}
-                >
+                <button type="button" disabled={submitting} onClick={handleCOD} className={`w-full border py-3.5 font-mono text-xs uppercase tracking-wider disabled:opacity-50 ${darkMode ? 'border-[#ffffff]/40' : 'border-[#000000]'}`}>
                   {submitting ? 'Processing...' : 'Cash on Delivery'}
                 </button>
               </div>
