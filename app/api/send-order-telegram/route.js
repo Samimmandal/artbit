@@ -4,6 +4,7 @@ export async function POST(req) {
   try {
     const body = await req.json()
     const {
+      type = 'order',
       orderId,
       customer_name,
       customer_email,
@@ -13,6 +14,7 @@ export async function POST(req) {
       payment_method,
       status,
       coupon,
+      cancel_reason,
       items = []
     } = body
 
@@ -27,7 +29,9 @@ export async function POST(req) {
     const payLabel =
       payment_method === 'cod' || status === 'cod'
         ? 'Cash on Delivery'
-        : 'Paid Online'
+        : payment_method === 'online' || status === 'paid'
+          ? 'Paid Online'
+          : (payment_method || status || '—')
 
     const itemsText = (items || [])
       .map((it, i) => {
@@ -36,26 +40,49 @@ export async function POST(req) {
       })
       .join('\n')
 
-    const text = [
-      `🛒 NEW ORDER #${orderId || '—'}`,
-      ``,
-      `👤 Customer`,
-      `Name: ${customer_name || '—'}`,
-      `Email: ${customer_email || '—'}`,
-      `Phone: ${customer_phone || '—'}`,
-      `Address: ${address || '—'}`,
-      ``,
-      `💳 Payment`,
-      `Method: ${payLabel}`,
-      `Status: ${status || '—'}`,
-      `Coupon: ${coupon || 'None'}`,
-      `Total: ₹${Number(total_amount || 0).toLocaleString('en-IN')}`,
-      ``,
-      `📦 Items`,
-      itemsText || 'No items',
-      ``,
-      `— Artbit · artbit.co.in`
-    ].join('\n')
+    let text = ''
+
+    if (type === 'cancel') {
+      text = [
+        `❌ ORDER CANCELLED #${orderId || '—'}`,
+        ``,
+        `👤 Customer`,
+        `Name: ${customer_name || '—'}`,
+        `Email: ${customer_email || '—'}`,
+        `Phone: ${customer_phone || '—'}`,
+        `Address: ${address || '—'}`,
+        ``,
+        `💳 Payment: ${payLabel}`,
+        `Total was: ₹${Number(total_amount || 0).toLocaleString('en-IN')}`,
+        `Reason: ${cancel_reason || 'Not specified'}`,
+        ``,
+        `📦 Items`,
+        itemsText || 'No items',
+        ``,
+        `— Artbit · artbit.co.in`
+      ].join('\n')
+    } else {
+      text = [
+        `🛒 NEW ORDER #${orderId || '—'}`,
+        ``,
+        `👤 Customer`,
+        `Name: ${customer_name || '—'}`,
+        `Email: ${customer_email || '—'}`,
+        `Phone: ${customer_phone || '—'}`,
+        `Address: ${address || '—'}`,
+        ``,
+        `💳 Payment`,
+        `Method: ${payLabel}`,
+        `Status: ${status || '—'}`,
+        `Coupon: ${coupon || 'None'}`,
+        `Total: ₹${Number(total_amount || 0).toLocaleString('en-IN')}`,
+        ``,
+        `📦 Items`,
+        itemsText || 'No items',
+        ``,
+        `— Artbit · artbit.co.in`
+      ].join('\n')
+    }
 
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
