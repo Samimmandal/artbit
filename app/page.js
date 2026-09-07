@@ -5,22 +5,41 @@ import { supabase } from '../lib/supabase'
 import Link from 'next/link'
 
 export default function HomePage() {
+  const [darkMode, setDarkMode] = useState(false)
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [homeArt, setHomeArt] = useState(null)
   const [user, setUser] = useState(null)
-  const [darkMode, setDarkMode] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('artbit-theme')
     if (saved === 'dark') setDarkMode(true)
-    fetchProducts()
-    checkUser()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null)
-      if (session?.user) saveProfile(session.user)
-    })
-    return () => subscription.unsubscribe()
+    init()
   }, [])
+
+  const init = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    setUser(user)
+
+    const [{ data: prods }, { data: art }] = await Promise.all([
+      supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(8),
+      supabase
+        .from('homepage_art')
+        .select('*')
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ])
+
+    setProducts(prods || [])
+    setHomeArt(art)
+    setLoading(false)
+  }
 
   const toggleTheme = () => {
     const next = !darkMode
@@ -28,56 +47,19 @@ export default function HomePage() {
     localStorage.setItem('artbit-theme', next ? 'dark' : 'light')
   }
 
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
-  }
-
-  const saveProfile = async (user) => {
-    await supabase.from('profiles').upsert({
-      id: user.id,
-      email: user.email,
-      full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
-      avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || '',
-      updated_at: new Date().toISOString()
-    })
-  }
-
-  const handleGoogleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin }
-    })
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    setUser(null)
-  }
-
-  const fetchProducts = async () => {
-    const { data } = await supabase
-      .from('products')
-      .select('*')
-      .eq('is_featured', true)
-      .order('created_at', { ascending: false })
-      .limit(4)
-    setProducts(data || [])
-    setLoading(false)
-  }
-
   const bg = darkMode ? 'bg-[#000000]' : 'bg-[#f2ede1]'
   const text = darkMode ? 'text-[#ffffff]' : 'text-[#000000]'
   const muted = darkMode ? 'text-[#cccccc]' : 'text-[#333333]'
+  const card = darkMode ? 'bg-[#0a0a0a] border-[#ffffff]/15' : 'bg-white border-[#000000]/10'
   const border = darkMode ? 'border-[#ffffff]/20' : 'border-[#000000]/15'
-  const cardBg = darkMode ? 'bg-[#0a0a0a]' : 'bg-[#f2ede1]'
-  const hoverBg = darkMode ? 'hover:bg-[#111111]' : 'hover:bg-[#e9e1d1]'
+  const imgBg = darkMode ? 'bg-[#111111]' : 'bg-[#e9e1d1]'
   const iconCls = `p-1.5 transition opacity-90 hover:opacity-100 ${
     darkMode ? 'hover:text-[#e2a233]' : 'hover:text-[#2c6660]'
   }`
 
   return (
     <div className={`min-h-screen ${bg} ${text}`}>
+      {/* Header */}
       <header className={`border-b ${border} sticky top-0 ${bg} z-50`}>
         <div className="max-w-6xl mx-auto px-5 sm:px-6 py-3.5 flex items-center justify-between gap-3">
           <Link href="/" className="shrink-0 flex items-center">
@@ -88,11 +70,11 @@ export default function HomePage() {
             />
           </Link>
 
-          <nav className="hidden md:flex gap-7 text-xs font-semibold uppercase tracking-widest">
-            <Link href="/shop" className="hover:text-[#2c6660] transition">Shop</Link>
-            <a href="#custom" className="hover:text-[#2c6660] transition">Custom Prints</a>
-            <a href="#process" className="hover:text-[#2c6660] transition">Process</a>
-            <a href="#contact" className="hover:text-[#2c6660] transition">Contact</a>
+          <nav className={`hidden md:flex items-center gap-6 text-xs font-mono uppercase tracking-wider ${muted}`}>
+            <Link href="/shop" className="hover:opacity-100 opacity-80 transition">Shop</Link>
+            <a href="#prints" className="hover:opacity-100 opacity-80 transition">Prints</a>
+            <a href="#process" className="hover:opacity-100 opacity-80 transition">Process</a>
+            <a href="#contact" className="hover:opacity-100 opacity-80 transition">Contact</a>
           </nav>
 
           <div className="flex items-center gap-1 sm:gap-2">
@@ -102,15 +84,9 @@ export default function HomePage() {
             <Link href="/cart" className={iconCls} aria-label="Cart" title="Cart">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             </Link>
-            {user ? (
-              <button onClick={handleLogout} className={iconCls} aria-label="Logout" title="Logout">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              </button>
-            ) : (
-              <button onClick={handleGoogleLogin} className={iconCls} aria-label="Login" title="Login">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              </button>
-            )}
+            <Link href="/account" className={iconCls} aria-label="Account" title="Account">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </Link>
             <Link href="/account" className={iconCls} aria-label="My Orders" title="My Orders">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
             </Link>
@@ -125,184 +101,282 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className={`max-w-6xl mx-auto px-5 sm:px-6 py-16 md:py-24 border-b ${border}`}>
-        <p className="text-[11px] font-mono uppercase tracking-[0.15em] text-[#2c6660] mb-5">
-          Small-batch DTF print house
-        </p>
-        <h1 className="text-[clamp(2.8rem,7vw,5.5rem)] font-black uppercase leading-[0.92] tracking-tight">
-          Printed by<br />Hand, Worn<br />On Purpose.
-        </h1>
-        <p className={`max-w-md ${muted} mt-6 text-[15px] leading-relaxed`}>
-          Every tee, hoodie and tote is finished with Direct-to-Film transfer — full-colour detail, soft hand-feel, printed to order in small batches.
-        </p>
-        <div className="flex flex-wrap gap-3 mt-8">
-          <Link href="/shop" className="bg-[#000000] text-[#ffffff] px-6 py-3.5 font-mono text-xs uppercase tracking-wider border border-[#000000] hover:opacity-90 transition">
-            Shop the Line
-          </Link>
-          <a href="#custom" className={`border px-6 py-3.5 font-mono text-xs uppercase tracking-wider transition ${darkMode ? 'border-[#ffffff]/40 hover:bg-[#ffffff] hover:text-[#000000]' : 'border-[#000000] hover:bg-[#000000] hover:text-[#ffffff]'}`}>
-            Start a Custom Order
-          </a>
+      {/* Hero */}
+      <section className="max-w-6xl mx-auto px-5 sm:px-6 py-12 md:py-16">
+        <div className="grid md:grid-cols-2 gap-10 md:gap-14 items-center">
+          <div>
+            <p className={`text-xs font-mono uppercase tracking-widest mb-4 ${muted}`}>
+              Small batch · DTF print house
+            </p>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-black uppercase leading-[0.95] tracking-tight mb-5">
+              Design it.<br />We&apos;ll press it.
+            </h1>
+            <p className={`text-sm sm:text-base leading-relaxed max-w-md mb-8 ${muted}`}>
+              Custom apparel printed to order. Tees, hoodies, oversized fits and kids — made with care, batch by batch.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/shop"
+                className="bg-[#000000] text-[#ffffff] px-6 py-3.5 font-mono text-xs uppercase tracking-wider"
+              >
+                Shop all prints
+              </Link>
+              <a
+                href="#process"
+                className={`border px-6 py-3.5 font-mono text-xs uppercase tracking-wider ${
+                  darkMode ? 'border-[#ffffff]/40' : 'border-[#000000]'
+                }`}
+              >
+                Our process
+              </a>
+            </div>
+          </div>
+
+          {/* YOUR ART HERE — dynamic from admin */}
+          <div className="aspect-square w-full max-w-md mx-auto overflow-hidden border border-white/10 relative">
+            {homeArt?.image_url ? (
+              <img
+                src={homeArt.image_url}
+                alt={homeArt.title || 'Your Art'}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div
+                className="w-full h-full flex items-center justify-center"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(-45deg, #e9e1d1, #e9e1d1 8px, #ddd5c5 8px, #ddd5c5 16px)'
+                }}
+              >
+                <span className="bg-[#f2ede1]/90 text-[#1b1b18] text-[10px] font-mono uppercase tracking-wider px-3 py-1.5">
+                  Your Art Here
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
-      <section className={`border-b ${border}`}>
-        <div className="grid grid-cols-2 md:grid-cols-4">
-          {[
-            { num: '01', name: 'Tees' },
-            { num: '02', name: 'Hoodies' },
-            { num: '03', name: 'Oversized' },
-            { num: '04', name: 'Kids' }
-          ].map((cat, i) => (
-            <Link
-              key={cat.name}
-              href="/shop"
-              className={`p-6 md:p-8 min-h-[130px] flex flex-col justify-between ${hoverBg} transition ${border} ${i % 2 === 1 ? 'border-l' : ''} ${i >= 2 ? 'border-t md:border-t-0' : ''} md:border-l ${i === 0 ? 'md:border-l-0' : ''}`}
-            >
-              <span className="text-[11px] font-mono text-[#2c6660]">{cat.num}</span>
-              <div className="flex items-end justify-between">
-                <h3 className="text-xl font-black uppercase">{cat.name}</h3>
-                <span className="font-mono text-sm">→</span>
-              </div>
+      {/* Category strip */}
+      <section className={`border-y ${border}`}>
+        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-4 flex flex-wrap justify-center gap-4 sm:gap-8 text-xs font-mono uppercase tracking-wider">
+          {['Tees', 'Hoodies', 'Oversized', 'Kids', 'Custom'].map((c) => (
+            <Link key={c} href="/shop" className={`${muted} hover:opacity-100 transition`}>
+              {c}
             </Link>
           ))}
         </div>
       </section>
 
-      <section className="py-16 md:py-20">
-        <div className="max-w-6xl mx-auto px-5 sm:px-6">
-          <div className="flex items-end justify-between mb-10 gap-4">
-            <div>
-              <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-[#2c6660] mb-1">On press this week</p>
-              <h2 className="text-3xl md:text-4xl font-black uppercase">Featured Prints</h2>
-            </div>
-            <Link href="/shop" className="text-xs font-mono border-b border-current pb-0.5 hover:text-[#2c6660] transition shrink-0">
-              View full catalog →
-            </Link>
+      {/* Featured products */}
+      <section id="prints" className="max-w-6xl mx-auto px-5 sm:px-6 py-14 md:py-16">
+        <div className="flex items-end justify-between mb-8 gap-4">
+          <div>
+            <p className={`text-xs font-mono uppercase tracking-widest mb-2 ${muted}`}>Collection</p>
+            <h2 className="text-2xl sm:text-3xl font-black uppercase">Featured prints</h2>
           </div>
-          {loading ? (
-            <p className="font-mono text-sm">Loading...</p>
-          ) : products.length === 0 ? (
-            <p className={muted}>No featured products yet.</p>
-          ) : (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px ${darkMode ? 'bg-[#ffffff]/15' : 'bg-[#000000]/15'} border ${border}`}>
-              {products.map(p => (
-                <Link href={`/product/${p.id}`} key={p.id} className={`${cardBg} group block`}>
-                  <div className={`aspect-[3/4] ${darkMode ? 'bg-[#111111]' : 'bg-[#e9e1d1]'} relative overflow-hidden`}>
+          <Link href="/shop" className={`text-xs font-mono uppercase underline ${muted}`}>
+            View all →
+          </Link>
+        </div>
+
+        {loading ? (
+          <p className="font-mono text-sm">Loading...</p>
+        ) : products.length === 0 ? (
+          <p className={`${muted} text-sm`}>No products yet. Add some from admin.</p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5">
+            {products.map((p) => {
+              const price = Number(p.price || 0)
+              const compare = p.compare_at_price ? Number(p.compare_at_price) : null
+              const off =
+                compare && compare > price
+                  ? Math.round(((compare - price) / compare) * 100)
+                  : null
+              return (
+                <Link
+                  key={p.id}
+                  href={`/product/${p.id}`}
+                  className={`${card} border overflow-hidden group`}
+                >
+                  <div className={`aspect-[3/4] ${imgBg} relative overflow-hidden`}>
                     {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                      <img
+                        src={p.image_url}
+                        alt={p.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs font-mono opacity-40">No image</div>
+                      <div className="w-full h-full flex items-center justify-center text-xs opacity-40">
+                        No image
+                      </div>
                     )}
                     {p.tag && (
-                      <span className="absolute top-3 left-3 bg-[#000000] text-[#ffffff] text-[10px] font-mono uppercase tracking-wider px-2 py-1">{p.tag}</span>
+                      <span className="absolute top-2 left-2 bg-[#000000] text-[#ffffff] text-[9px] font-mono uppercase px-1.5 py-0.5">
+                        {p.tag}
+                      </span>
+                    )}
+                    {off && (
+                      <span className="absolute top-2 right-2 bg-[#bd4632] text-white text-[9px] font-mono uppercase px-1.5 py-0.5">
+                        {off}% OFF
+                      </span>
                     )}
                   </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-[15px] mb-1">{p.name}</h3>
-                    <p className={`text-xs ${muted} mb-2`}>{p.sizes || 'S · M · L · XL'}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-mono text-sm text-[#2c6660]">₹{Number(p.price).toLocaleString('en-IN')}</p>
-                      {p.compare_at_price && Number(p.compare_at_price) > Number(p.price) && (
-                        <p className={`font-mono text-xs line-through ${muted}`}>₹{Number(p.compare_at_price).toLocaleString('en-IN')}</p>
+                  <div className="p-3">
+                    <p className="font-semibold text-sm uppercase truncate">{p.name}</p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="font-mono text-sm text-[#2c6660] font-bold">
+                        ₹{price.toLocaleString('en-IN')}
+                      </span>
+                      {compare && compare > price && (
+                        <span className={`font-mono text-xs line-through ${muted}`}>
+                          ₹{compare.toLocaleString('en-IN')}
+                        </span>
                       )}
                     </div>
+                    {p.offer_text && (
+                      <p className="text-[10px] font-mono uppercase text-[#bd4632] mt-1">
+                        {p.offer_text}
+                      </p>
+                    )}
                   </div>
                 </Link>
-              ))}
-            </div>
-          )}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </section>
 
-      <section id="custom" className="bg-[#000000] text-[#ffffff] py-20 md:py-24">
-        <div className="max-w-6xl mx-auto px-5 sm:px-6 grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-[#e2a233] mb-3">Bring your own art</p>
-            <h2 className="text-3xl md:text-5xl font-black uppercase leading-tight mb-5">Design It.<br />We&apos;ll Print It.</h2>
-            <p className="text-[#cccccc] max-w-md mb-8 leading-relaxed">
-              Upload your artwork or share an idea — we&apos;ll handle the DTF film, powder and heat press, and send a sample before the full run ships.
-            </p>
-            <a href="#contact" className="inline-block bg-[#e2a233] text-[#000000] px-6 py-3.5 font-mono text-xs uppercase tracking-wider hover:bg-[#ffffff] transition">
-              Start Your Design
-            </a>
-          </div>
-          <div className="aspect-square bg-[repeating-linear-gradient(45deg,#2c6660_0_2px,transparent_2px_22px)] bg-[#e9e1d1] relative flex items-center justify-center">
-            <span className="bg-[#f2ede1] text-[#000000] px-4 py-2 font-mono text-xs uppercase tracking-wider">Your Art Here</span>
-          </div>
-        </div>
-      </section>
-
-      <section id="process" className={`py-16 md:py-20 border-b ${border}`}>
-        <div className="max-w-6xl mx-auto px-5 sm:px-6">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-[#2c6660] mb-1">How a print gets made</p>
-          <h2 className="text-3xl md:text-4xl font-black uppercase mb-10">The Artbit Process</h2>
-          <div className={`grid md:grid-cols-3 border ${border}`}>
+      {/* DTF Process */}
+      <section id="process" className={`border-t ${border}`}>
+        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-14 md:py-16">
+          <p className={`text-xs font-mono uppercase tracking-widest mb-2 ${muted}`}>
+            How it works
+          </p>
+          <h2 className="text-2xl sm:text-3xl font-black uppercase mb-10">
+            The Artbit process
+          </h2>
+          <div className="grid md:grid-cols-3 gap-6 md:gap-8">
             {[
               {
-                num: '01 / Film',
-                title: 'Print on film',
-                desc: 'Your design is printed in full colour onto a PET film using DTF inks — sharp detail, soft hand-feel ready from the first pass.'
+                n: '01',
+                title: 'Prepare the design',
+                desc: 'Your artwork is colour-corrected and sized for Direct-to-Film transfer — sharp edges, true colours.'
               },
               {
-                num: '02 / Powder',
-                title: 'Powder & cure',
-                desc: 'Hot-melt adhesive powder is applied to the wet ink, then cured so the transfer is stable, stretch-friendly and ready for the press.'
+                n: '02',
+                title: 'Print the film',
+                desc: 'We print your design onto specialised PET film with DTF ink, then apply hot-melt powder for a strong bond.'
               },
               {
-                num: '03 / Press',
-                title: 'Heat press & finish',
-                desc: 'The film is heat-pressed onto the garment, peeled, and checked by hand. Every piece leaves only after a final quality pass.'
+                n: '03',
+                title: 'Press & finish',
+                desc: 'Heat-pressed onto premium blanks, cooled and checked. Ready to wear, wash after wash.'
               }
-            ].map((step, i) => (
-              <div key={step.num} className={`p-6 md:p-8 ${i < 2 ? `border-b md:border-b-0 md:border-r ${border}` : ''}`}>
-                <span className="text-xs font-mono text-[#bd4632] block mb-3">{step.num}</span>
-                <h3 className="text-lg font-black uppercase mb-3">{step.title}</h3>
-                <p className={`text-sm ${muted} leading-relaxed`}>{step.desc}</p>
+            ].map((step) => (
+              <div key={step.n} className={`${card} border p-6`}>
+                <p className="font-mono text-xs text-[#2c6660] mb-3">{step.n}</p>
+                <h3 className="font-black uppercase text-lg mb-2">{step.title}</h3>
+                <p className={`text-sm leading-relaxed ${muted}`}>{step.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="contact" className="py-16 md:py-20">
-        <div className="max-w-6xl mx-auto px-5 sm:px-6">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-[#2c6660] mb-2">Let&apos;s talk prints</p>
-          <h2 className="text-3xl font-black uppercase mb-4">Have a Custom Order in Mind?</h2>
-          <p className={`${muted} max-w-md mb-8 leading-relaxed`}>
-            Tell us about the run — quantity, garment, deadline — and we&apos;ll get back with a quote within one business day.
+      {/* CTA */}
+      <section className={`border-t ${border}`}>
+        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-14 text-center">
+          <h2 className="text-2xl sm:text-3xl font-black uppercase mb-4">
+            Ready to wear your art?
+          </h2>
+          <p className={`text-sm max-w-md mx-auto mb-6 ${muted}`}>
+            Browse the shop or drop us a message for custom bulk orders.
           </p>
-          <div className="flex flex-wrap items-center gap-4">
-            <a href="https://www.instagram.com/artbit.co.in?igsh=ZHJyNXFhb2VwY2xr" target="_blank" rel="noopener noreferrer" className={iconCls} aria-label="Instagram">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
-            </a>
-            <a href="https://www.facebook.com/share/19Eop63Sz3/" target="_blank" rel="noopener noreferrer" className={iconCls} aria-label="Facebook">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-            </a>
-            <a href="mailto:artbit.hq@gmail.com" className={iconCls} aria-label="Email">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>
-            </a>
-          </div>
+          <Link
+            href="/shop"
+            className="inline-block bg-[#2c6660] text-white px-8 py-3.5 font-mono text-xs uppercase tracking-wider"
+          >
+            Shop now
+          </Link>
         </div>
       </section>
 
-      <footer className={`border-t ${border} py-10`}>
-        <div className="max-w-6xl mx-auto px-5 sm:px-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">
-            <img
-              src={darkMode ? '/logo-white.png' : '/logo.png'}
-              alt="Artbit"
-              className="h-8 w-auto object-contain"
-            />
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs font-mono uppercase tracking-wider">
-              <Link href="/page/about" className="hover:text-[#2c6660] transition">About Us</Link>
-              <Link href="/page/terms" className="hover:text-[#2c6660] transition">Terms & Conditions</Link>
-              <Link href="/page/privacy" className="hover:text-[#2c6660] transition">Privacy Policy</Link>
-              <Link href="/page/hiring" className="hover:text-[#2c6660] transition">We Are Hiring</Link>
+      {/* Footer */}
+      <footer id="contact" className={`border-t ${border}`}>
+        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-12">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
+            <div className="col-span-2 md:col-span-1">
+              <img
+                src={darkMode ? '/logo-white.png' : '/logo.png'}
+                alt="Artbit"
+                className="h-8 w-auto object-contain mb-3"
+              />
+              <p className={`text-xs leading-relaxed max-w-[28ch] ${muted}`}>
+                Small DTF print studio making apparel worth keeping. Printed to order, batch by batch.
+              </p>
+            </div>
+            <div>
+              <h5 className="text-xs font-mono uppercase font-semibold mb-3">Shop</h5>
+              <ul className={`space-y-2 text-sm ${muted}`}>
+                <li><Link href="/shop" className="hover:opacity-100">Tees</Link></li>
+                <li><Link href="/shop" className="hover:opacity-100">Hoodies</Link></li>
+                <li><Link href="/shop" className="hover:opacity-100">Kids</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h5 className="text-xs font-mono uppercase font-semibold mb-3">Studio</h5>
+              <ul className={`space-y-2 text-sm ${muted}`}>
+                <li><a href="#process" className="hover:opacity-100">Our Process</a></li>
+                <li><Link href="/page/about" className="hover:opacity-100">About Us</Link></li>
+                <li><Link href="/page/terms" className="hover:opacity-100">Terms</Link></li>
+                <li><Link href="/page/privacy" className="hover:opacity-100">Privacy</Link></li>
+                <li><Link href="/page/hiring" className="hover:opacity-100">We&apos;re Hiring</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h5 className="text-xs font-mono uppercase font-semibold mb-3">Follow</h5>
+              <div className="flex gap-3">
+                <a
+                  href="https://www.instagram.com/artbit.co.in?igsh=ZHJyNXFhb2VwY2xr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={iconCls}
+                  aria-label="Instagram"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                    <rect x="2" y="2" width="20" height="20" rx="5" />
+                    <circle cx="12" cy="12" r="4" />
+                    <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+                  </svg>
+                </a>
+                <a
+                  href="https://www.facebook.com/share/19Eop63Sz3/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={iconCls}
+                  aria-label="Facebook"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+                  </svg>
+                </a>
+                <a
+                  href="mailto:artbit.hq@gmail.com"
+                  className={iconCls}
+                  aria-label="Email"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                    <polyline points="22,6 12,13 2,6" />
+                  </svg>
+                </a>
+              </div>
             </div>
           </div>
-          <div className={`flex flex-col sm:flex-row justify-between items-center gap-3 text-[11px] font-mono ${muted} border-t ${border} pt-6`}>
-            <span>© 2026 Artbit Print Co. All rights reserved.</span>
-            <span>DTF printed to order, batch by batch.</span>
+          <div className={`border-t ${border} pt-6 flex flex-col sm:flex-row justify-between gap-2 text-[11px] font-mono ${muted}`}>
+            <span>© 2026 Artbit. All rights reserved.</span>
+            <span>Printed with care.</span>
           </div>
         </div>
       </footer>
