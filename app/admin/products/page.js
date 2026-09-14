@@ -104,6 +104,11 @@ export default function AdminProductsPage() {
 
   const startEdit = (p) => {
     setEditId(p.id)
+    let imgs = []
+    if (Array.isArray(p.images)) imgs = p.images
+    else if (typeof p.images === 'string') {
+      try { imgs = JSON.parse(p.images) } catch { imgs = [] }
+    }
     setForm({
       name: p.name || '',
       price: p.price ?? '',
@@ -114,7 +119,7 @@ export default function AdminProductsPage() {
       category: p.category || 'tees',
       featured: !!p.featured,
       image_url: p.image_url || '',
-      images: Array.isArray(p.images) ? p.images : (p.images ? JSON.parse(p.images) : [])
+      images: imgs
     })
     setMainPreview(p.image_url || '')
     setMainFile(null)
@@ -127,7 +132,7 @@ export default function AdminProductsPage() {
       alert('Product name required')
       return
     }
-    if (!form.price && form.price !== 0) {
+    if (form.price === '' || form.price === null || form.price === undefined) {
       alert('Price required')
       return
     }
@@ -158,7 +163,8 @@ export default function AdminProductsPage() {
         category: form.category || 'tees',
         featured: !!form.featured,
         image_url: imageUrl || null,
-        images: extraImages
+        images: extraImages,
+        sizes: ['S', 'M', 'L', 'XL', 'XXL']
       }
 
       let error
@@ -228,7 +234,6 @@ export default function AdminProductsPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-5 py-8 space-y-10">
-        {/* Form */}
         <section className={`border p-5 space-y-4 ${card}`}>
           <h2 className="font-black uppercase text-sm">
             {editId ? `Edit product #${editId}` : 'Add product'}
@@ -311,7 +316,6 @@ export default function AdminProductsPage() {
             </select>
           </div>
 
-          {/* Main image */}
           <div>
             <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Main photo</label>
             {mainPreview && (
@@ -323,7 +327,6 @@ export default function AdminProductsPage() {
             <input type="file" accept="image/*" onChange={onMainChange} className="text-sm" />
           </div>
 
-          {/* More photos */}
           <div>
             <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>
               More photos (from PC – multiple allowed)
@@ -383,7 +386,6 @@ export default function AdminProductsPage() {
           </div>
         </section>
 
-        {/* List */}
         <section>
           <h2 className="font-black uppercase text-sm mb-4">All products ({products.length})</h2>
           <div className="space-y-3">
@@ -401,18 +403,10 @@ export default function AdminProductsPage() {
                     {p.slug ? ` · ${p.slug}` : ''}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => startEdit(p)}
-                  className="text-xs font-mono underline"
-                >
+                <button type="button" onClick={() => startEdit(p)} className="text-xs font-mono underline">
                   Edit
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(p.id)}
-                  className="text-xs font-mono text-red-500 underline"
-                >
+                <button type="button" onClick={() => handleDelete(p.id)} className="text-xs font-mono text-red-500 underline">
                   Delete
                 </button>
               </div>
