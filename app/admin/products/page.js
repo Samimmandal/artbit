@@ -24,7 +24,7 @@ const emptyForm = {
   tag: '',
   offer_text: '',
   category: 'tees',
-  featured: false,
+  is_featured: false,
   image_url: '',
   images: [],
   stock: 100,
@@ -148,7 +148,7 @@ export default function AdminProductsPage() {
       tag: p.tag || '',
       offer_text: p.offer_text || '',
       category: p.category || 'tees',
-      featured: !!p.featured,
+      is_featured: !!(p.is_featured ?? p.featured),
       image_url: p.image_url || '',
       images: imgs,
       stock: p.stock ?? 100,
@@ -198,7 +198,7 @@ export default function AdminProductsPage() {
         tag: form.tag || null,
         offer_text: form.offer_text || null,
         category: form.category || 'tees',
-        featured: !!form.featured,
+        is_featured: !!form.is_featured,
         image_url: imageUrl || null,
         images: extraImages,
         sizes: form.sizes,
@@ -320,7 +320,6 @@ export default function AdminProductsPage() {
             />
           </div>
 
-          {/* Sizes — admin chooses */}
           <div>
             <label className={`block text-xs font-mono uppercase mb-2 ${muted}`}>
               Available sizes * (tick only what you have)
@@ -437,8 +436,8 @@ export default function AdminProductsPage() {
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
-              checked={form.featured}
-              onChange={(e) => setForm({ ...form, featured: e.target.checked })}
+              checked={form.is_featured}
+              onChange={(e) => setForm({ ...form, is_featured: e.target.checked })}
             />
             Featured on homepage
           </label>
