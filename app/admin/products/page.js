@@ -14,6 +14,8 @@ function makeSlug(name) {
     .slice(0, 80) || `product-${Date.now()}`
 }
 
+const ALL_SIZES = ['S', 'M', 'L', 'XL', 'XXL']
+
 const emptyForm = {
   name: '',
   price: '',
@@ -25,7 +27,8 @@ const emptyForm = {
   featured: false,
   image_url: '',
   images: [],
-  stock: 100
+  stock: 100,
+  sizes: ['S', 'M', 'L']
 }
 
 export default function AdminProductsPage() {
@@ -95,12 +98,35 @@ export default function AdminProductsPage() {
     }))
   }
 
+  const toggleSize = (size) => {
+    setForm((f) => {
+      const current = f.sizes || []
+      if (current.includes(size)) {
+        return { ...f, sizes: current.filter((s) => s !== size) }
+      }
+      return { ...f, sizes: [...current, size] }
+    })
+  }
+
   const resetForm = () => {
     setForm(emptyForm)
     setEditId(null)
     setMainFile(null)
     setMainPreview('')
     setMoreFiles([])
+  }
+
+  const parseSizes = (raw) => {
+    if (Array.isArray(raw)) return raw
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) return parsed
+      } catch {
+        return raw.split(',').map((s) => s.trim()).filter(Boolean)
+      }
+    }
+    return ['S', 'M', 'L']
   }
 
   const startEdit = (p) => {
@@ -125,7 +151,8 @@ export default function AdminProductsPage() {
       featured: !!p.featured,
       image_url: p.image_url || '',
       images: imgs,
-      stock: p.stock ?? 100
+      stock: p.stock ?? 100,
+      sizes: parseSizes(p.sizes)
     })
     setMainPreview(p.image_url || '')
     setMainFile(null)
@@ -140,6 +167,10 @@ export default function AdminProductsPage() {
     }
     if (form.price === '' || form.price === null || form.price === undefined) {
       alert('Price required')
+      return
+    }
+    if (!form.sizes || form.sizes.length === 0) {
+      alert('Select at least one size')
       return
     }
 
@@ -170,8 +201,8 @@ export default function AdminProductsPage() {
         featured: !!form.featured,
         image_url: imageUrl || null,
         images: extraImages,
-        sizes: ['S', 'M', 'L', 'XL', 'XXL'],
-        stock: Number(form.stock) >= 0 ? Number(form.stock) : 100
+        sizes: form.sizes,
+        stock: Number(form.stock) >= 0 ? Number(form.stock) : 0
       }
 
       let error
@@ -285,7 +316,39 @@ export default function AdminProductsPage() {
               className={`w-full border px-3 py-2 text-sm ${input}`}
               value={form.stock}
               onChange={(e) => setForm({ ...form, stock: e.target.value })}
+              placeholder="How many pieces available"
             />
+          </div>
+
+          {/* Sizes — admin chooses */}
+          <div>
+            <label className={`block text-xs font-mono uppercase mb-2 ${muted}`}>
+              Available sizes * (tick only what you have)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {ALL_SIZES.map((size) => {
+                const selected = (form.sizes || []).includes(size)
+                return (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => toggleSize(size)}
+                    className={`min-w-[52px] px-3 py-2 text-xs font-mono uppercase border transition ${
+                      selected
+                        ? 'bg-[#2c6660] border-[#2c6660] text-white'
+                        : darkMode
+                          ? 'border-white/25 text-white/70'
+                          : 'border-black/25 text-black/70'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                )
+              })}
+            </div>
+            <p className={`text-[11px] mt-2 ${muted}`}>
+              Selected: {(form.sizes || []).join(', ') || 'none'}
+            </p>
           </div>
 
           <div>
@@ -369,9 +432,6 @@ export default function AdminProductsPage() {
                 </div>
               ))}
             </div>
-            <p className={`text-[11px] mt-2 ${muted}`}>
-              Size guide uses the default chart on the product page. No upload needed.
-            </p>
           </div>
 
           <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -407,29 +467,32 @@ export default function AdminProductsPage() {
         <section>
           <h2 className="font-black uppercase text-sm mb-4">All products ({products.length})</h2>
           <div className="space-y-3">
-            {products.map((p) => (
-              <div key={p.id} className={`border p-3 flex gap-3 items-center ${card}`}>
-                {p.image_url ? (
-                  <img src={p.image_url} alt="" className="w-14 h-16 object-cover shrink-0" />
-                ) : (
-                  <div className="w-14 h-16 bg-black/20 shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm uppercase truncate">{p.name}</p>
-                  <p className={`text-xs font-mono ${muted}`}>
-                    ₹{Number(p.price || 0).toLocaleString('en-IN')}
-                    {p.slug ? ` · ${p.slug}` : ''}
-                    {p.stock != null ? ` · stock ${p.stock}` : ''}
-                  </p>
+            {products.map((p) => {
+              const sizesLabel = parseSizes(p.sizes).join(', ')
+              return (
+                <div key={p.id} className={`border p-3 flex gap-3 items-center ${card}`}>
+                  {p.image_url ? (
+                    <img src={p.image_url} alt="" className="w-14 h-16 object-cover shrink-0" />
+                  ) : (
+                    <div className="w-14 h-16 bg-black/20 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm uppercase truncate">{p.name}</p>
+                    <p className={`text-xs font-mono ${muted}`}>
+                      ₹{Number(p.price || 0).toLocaleString('en-IN')}
+                      {p.stock != null ? ` · stock ${p.stock}` : ''}
+                      {sizesLabel ? ` · ${sizesLabel}` : ''}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => startEdit(p)} className="text-xs font-mono underline">
+                    Edit
+                  </button>
+                  <button type="button" onClick={() => handleDelete(p.id)} className="text-xs font-mono text-red-500 underline">
+                    Delete
+                  </button>
                 </div>
-                <button type="button" onClick={() => startEdit(p)} className="text-xs font-mono underline">
-                  Edit
-                </button>
-                <button type="button" onClick={() => handleDelete(p.id)} className="text-xs font-mono text-red-500 underline">
-                  Delete
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </section>
       </main>
