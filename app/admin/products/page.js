@@ -1,551 +1,424 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+
+function makeSlug(name) {
+  return String(name || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\u0980-\u09FF]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || `product-${Date.now()}`
+}
 
 const emptyForm = {
   name: '',
   price: '',
   compare_at_price: '',
   description: '',
-  sizes: 'S, M, L, XL',
-  colors: '',
-  fabric: '',
-  category: '',
   tag: '',
   offer_text: '',
-  stock: '10',
-  is_featured: false,
+  category: 'tees',
+  featured: false,
   image_url: '',
-  images: [],
-  fit: '',
-  neck: '',
-  sleeve: '',
-  hemline: '',
-  design_note: ''
+  images: []
 }
 
-export default function AdminProducts() {
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState(emptyForm)
-  const [editingId, setEditingId] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [uploadingMain, setUploadingMain] = useState(false)
-  const [uploadingExtra, setUploadingExtra] = useState(false)
+export default function AdminProductsPage() {
   const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [products, setProducts] = useState([])
+  const [form, setForm] = useState(emptyForm)
+  const [editId, setEditId] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [mainFile, setMainFile] = useState(null)
+  const [mainPreview, setMainPreview] = useState('')
+  const [moreFiles, setMoreFiles] = useState([])
+  const [darkMode, setDarkMode] = useState(true)
 
   useEffect(() => {
-    checkAuth()
+    const saved = localStorage.getItem('artbit-admin-theme')
+    if (saved === 'light') setDarkMode(false)
+    init()
   }, [])
 
-  const checkAuth = async () => {
+  const init = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      router.push('/admin/login')
+      router.push('/admin')
       return
     }
-    fetchProducts()
-  }
-
-  const fetchProducts = async () => {
-    setLoading(true)
-    const { data } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setProducts(data || [])
+    await fetchProducts()
     setLoading(false)
   }
 
-  const uploadFile = async (file) => {
-    const fileName = `${Date.now()}-${file.name.replace(/\s/g, '-')}`
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (error) console.error(error)
+    setProducts(data || [])
+  }
+
+  const uploadImage = async (file) => {
+    const ext = file.name.split('.').pop() || 'jpg'
+    const path = `products/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
     const { error } = await supabase.storage
       .from('product-images')
-      .upload(fileName, file)
-
+      .upload(path, file, { upsert: true, contentType: file.type })
     if (error) throw error
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('product-images')
-      .getPublicUrl(fileName)
-
-    return publicUrl
+    const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+    return data.publicUrl
   }
 
-  // Main image — একটা ফাইল
-  const handleMainUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploadingMain(true)
-    try {
-      const url = await uploadFile(file)
-      setForm(f => {
-        const extras = (f.images || []).filter(u => u !== f.image_url)
-        return {
-          ...f,
-          image_url: url,
-          images: [url, ...extras]
-        }
-      })
-    } catch (err) {
-      alert('Upload error: ' + err.message)
-    }
-    setUploadingMain(false)
-    e.target.value = ''
+  const onMainChange = (e) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setMainFile(f)
+    setMainPreview(URL.createObjectURL(f))
   }
 
-  // Extra images — একাধিক ফাইল
-  const handleExtraUpload = async (e) => {
+  const onMoreChange = (e) => {
     const files = Array.from(e.target.files || [])
-    if (files.length === 0) return
-    setUploadingExtra(true)
-    try {
-      const urls = []
-      for (const file of files) {
-        const url = await uploadFile(file)
-        urls.push(url)
-      }
-      setForm(f => {
-        const existing = f.images || []
-        const main = f.image_url
-        const merged = main
-          ? [main, ...existing.filter(u => u !== main), ...urls]
-          : [...existing, ...urls]
-        return {
-          ...f,
-          image_url: f.image_url || urls[0] || '',
-          images: [...new Set(merged)]
-        }
-      })
-    } catch (err) {
-      alert('Upload error: ' + err.message)
-    }
-    setUploadingExtra(false)
-    e.target.value = ''
+    setMoreFiles((prev) => [...prev, ...files])
   }
 
-  const removeImage = (url) => {
-    setForm(f => {
-      const next = (f.images || []).filter(u => u !== url)
-      const main = f.image_url === url ? (next[0] || '') : f.image_url
-      return { ...f, images: next, image_url: main }
-    })
+  const removeExistingExtra = (url) => {
+    setForm((f) => ({
+      ...f,
+      images: (f.images || []).filter((u) => u !== url)
+    }))
+  }
+
+  const resetForm = () => {
+    setForm(emptyForm)
+    setEditId(null)
+    setMainFile(null)
+    setMainPreview('')
+    setMoreFiles([])
   }
 
   const startEdit = (p) => {
-    setEditingId(p.id)
-    const imgs = (p.images && p.images.length)
-      ? p.images
-      : (p.image_url ? [p.image_url] : [])
+    setEditId(p.id)
     setForm({
       name: p.name || '',
-      price: String(p.price || ''),
-      compare_at_price: p.compare_at_price ? String(p.compare_at_price) : '',
+      price: p.price ?? '',
+      compare_at_price: p.compare_at_price ?? '',
       description: p.description || '',
-      sizes: p.sizes || 'S, M, L, XL',
-      colors: p.colors || '',
-      fabric: p.fabric || '',
-      category: p.category || '',
       tag: p.tag || '',
       offer_text: p.offer_text || '',
-      stock: String(p.stock ?? 10),
-      is_featured: !!p.is_featured,
-      image_url: p.image_url || imgs[0] || '',
-      images: imgs,
-      fit: p.fit || '',
-      neck: p.neck || '',
-      sleeve: p.sleeve || '',
-      hemline: p.hemline || '',
-      design_note: p.design_note || ''
+      category: p.category || 'tees',
+      featured: !!p.featured,
+      image_url: p.image_url || '',
+      images: Array.isArray(p.images) ? p.images : (p.images ? JSON.parse(p.images) : [])
     })
+    setMainPreview(p.image_url || '')
+    setMainFile(null)
+    setMoreFiles([])
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const cancelEdit = () => {
-    setEditingId(null)
-    setForm(emptyForm)
-  }
+  const handleSave = async () => {
+    if (!form.name.trim()) {
+      alert('Product name required')
+      return
+    }
+    if (!form.price && form.price !== 0) {
+      alert('Price required')
+      return
+    }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
     setSaving(true)
+    try {
+      let imageUrl = form.image_url
+      if (mainFile) {
+        imageUrl = await uploadImage(mainFile)
+      }
 
-    const imagesArr = form.images?.length
-      ? form.images
-      : (form.image_url ? [form.image_url] : [])
+      let extraImages = [...(form.images || [])]
+      for (const f of moreFiles) {
+        const url = await uploadImage(f)
+        extraImages.push(url)
+      }
 
-    const payload = {
-      name: form.name,
-      price: parseFloat(form.price) || 0,
-      compare_at_price: form.compare_at_price ? parseFloat(form.compare_at_price) : null,
-      description: form.description || '',
-      sizes: form.sizes || null,
-      colors: form.colors || null,
-      fabric: form.fabric || null,
-      category: form.category || null,
-      tag: form.tag || null,
-      offer_text: form.offer_text || null,
-      stock: parseInt(form.stock) || 0,
-      is_featured: form.is_featured,
-      image_url: form.image_url || imagesArr[0] || null,
-      images: imagesArr,
-      size_guide_url: null,
-      fit: form.fit || null,
-      neck: form.neck || null,
-      sleeve: form.sleeve || null,
-      hemline: form.hemline || null,
-      design_note: form.design_note || null
-    }
+      const slug = makeSlug(form.name)
 
-    let error
-    if (editingId) {
-      ;({ error } = await supabase.from('products').update(payload).eq('id', editingId))
-    } else {
-      ;({ error } = await supabase.from('products').insert([payload]))
-    }
+      const payload = {
+        name: form.name.trim(),
+        slug,
+        price: Number(form.price) || 0,
+        compare_at_price: form.compare_at_price ? Number(form.compare_at_price) : null,
+        description: form.description || '',
+        tag: form.tag || null,
+        offer_text: form.offer_text || null,
+        category: form.category || 'tees',
+        featured: !!form.featured,
+        image_url: imageUrl || null,
+        images: extraImages
+      }
 
-    if (error) alert('Error: ' + error.message)
-    else {
-      cancelEdit()
-      fetchProducts()
-      alert(editingId ? 'Product updated!' : 'Product added!')
+      let error
+      if (editId) {
+        ;({ error } = await supabase.from('products').update(payload).eq('id', editId))
+      } else {
+        ;({ error } = await supabase.from('products').insert([payload]))
+      }
+
+      if (error) throw error
+
+      alert(editId ? 'Product updated' : 'Product added')
+      resetForm()
+      await fetchProducts()
+    } catch (err) {
+      console.error(err)
+      alert('Error: ' + (err.message || err))
     }
     setSaving(false)
   }
 
-  const deleteProduct = async (id) => {
+  const handleDelete = async (id) => {
     if (!confirm('Delete this product?')) return
     const { error } = await supabase.from('products').delete().eq('id', id)
-    if (error) alert('Error: ' + error.message)
-    else fetchProducts()
+    if (error) {
+      alert(error.message)
+      return
+    }
+    await fetchProducts()
+  }
+
+  const bg = darkMode ? 'bg-[#0a0a0a]' : 'bg-[#f2ede1]'
+  const text = darkMode ? 'text-white' : 'text-black'
+  const muted = darkMode ? 'text-white/50' : 'text-black/60'
+  const input = darkMode
+    ? 'bg-[#111] border-white/20 text-white'
+    : 'bg-white border-black/20 text-black'
+  const card = darkMode ? 'border-white/10 bg-[#111]' : 'border-black/10 bg-white'
+
+  if (loading) {
+    return (
+      <div className={`min-h-screen ${bg} ${text} flex items-center justify-center font-mono text-sm`}>
+        Loading...
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-[#f2ede1] text-[#1b1b18]">
-      <header className="border-b border-[#1b1b18]/20 bg-white">
-        <div className="max-w-6xl mx-auto px-5 py-4 flex items-center gap-4">
-          <Link href="/admin/dashboard" className="text-sm font-mono hover:underline">
+    <div className={`min-h-screen ${bg} ${text}`}>
+      <header className={`border-b ${darkMode ? 'border-white/10' : 'border-black/10'} px-5 py-4 flex items-center justify-between`}>
+        <div className="flex items-center gap-3">
+          <Link href="/admin/dashboard" className={`text-xs font-mono uppercase ${muted}`}>
             ← Dashboard
           </Link>
-          <span className="font-black text-xl uppercase">Products</span>
+          <h1 className="font-black uppercase text-lg">Products</h1>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setDarkMode(!darkMode)
+            localStorage.setItem('artbit-admin-theme', !darkMode ? 'dark' : 'light')
+          }}
+          className={`text-[10px] font-mono uppercase border px-3 py-1.5 ${darkMode ? 'border-white/20' : 'border-black/20'}`}
+        >
+          {darkMode ? 'Light' : 'Dark'}
+        </button>
       </header>
 
-      <main className="max-w-6xl mx-auto px-5 py-8">
-        <form onSubmit={handleSubmit} className="bg-white border border-[#1b1b18]/15 p-6 mb-10 space-y-4">
-          <h2 className="font-black uppercase text-lg">
-            {editingId ? 'Edit Product' : 'Add Product'}
+      <main className="max-w-3xl mx-auto px-5 py-8 space-y-10">
+        {/* Form */}
+        <section className={`border p-5 space-y-4 ${card}`}>
+          <h2 className="font-black uppercase text-sm">
+            {editId ? `Edit product #${editId}` : 'Add product'}
           </h2>
 
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Name *</label>
+            <input
+              className={`w-full border px-3 py-2 text-sm ${input}`}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Product name"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Name *</label>
+              <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Price *</label>
               <input
-                required
-                value={form.name}
-                onChange={e => setForm({ ...form, name: e.target.value })}
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Category</label>
-              <input
-                value={form.category}
-                onChange={e => setForm({ ...form, category: e.target.value })}
-                placeholder="Tees / Hoodies"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Selling Price (₹) *</label>
-              <input
-                required
                 type="number"
+                className={`w-full border px-3 py-2 text-sm ${input}`}
                 value={form.price}
-                onChange={e => setForm({ ...form, price: e.target.value })}
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
               />
             </div>
             <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Original Price (₹)</label>
+              <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Compare at</label>
               <input
                 type="number"
+                className={`w-full border px-3 py-2 text-sm ${input}`}
                 value={form.compare_at_price}
-                onChange={e => setForm({ ...form, compare_at_price: e.target.value })}
-                placeholder="For discount %"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Sizes</label>
-              <input
-                value={form.sizes}
-                onChange={e => setForm({ ...form, sizes: e.target.value })}
-                placeholder="S, M, L, XL"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Colors</label>
-              <input
-                value={form.colors}
-                onChange={e => setForm({ ...form, colors: e.target.value })}
-                placeholder="White, Black, Navy"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Fabric</label>
-              <input
-                value={form.fabric}
-                onChange={e => setForm({ ...form, fabric: e.target.value })}
-                placeholder="100% Cotton"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Tag</label>
-              <input
-                value={form.tag}
-                onChange={e => setForm({ ...form, tag: e.target.value })}
-                placeholder="New / Bestseller"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Offer Text</label>
-              <input
-                value={form.offer_text}
-                onChange={e => setForm({ ...form, offer_text: e.target.value })}
-                placeholder="Buy 3 Get 10% Off"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Stock</label>
-              <input
-                type="number"
-                value={form.stock}
-                onChange={e => setForm({ ...form, stock: e.target.value })}
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Fit</label>
-              <input
-                value={form.fit}
-                onChange={e => setForm({ ...form, fit: e.target.value })}
-                placeholder="Regular / Oversized"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Neck</label>
-              <input
-                value={form.neck}
-                onChange={e => setForm({ ...form, neck: e.target.value })}
-                placeholder="Crew / V-neck"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Sleeve</label>
-              <input
-                value={form.sleeve}
-                onChange={e => setForm({ ...form, sleeve: e.target.value })}
-                placeholder="Half / Full"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase text-gray-500">Hemline</label>
-              <input
-                value={form.hemline}
-                onChange={e => setForm({ ...form, hemline: e.target.value })}
-                placeholder="Straight / Curved"
-                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
+                onChange={(e) => setForm({ ...form, compare_at_price: e.target.value })}
               />
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] font-mono uppercase text-gray-500">Design Note</label>
-            <input
-              value={form.design_note}
-              onChange={e => setForm({ ...form, design_note: e.target.value })}
-              className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-mono uppercase text-gray-500">Description *</label>
+            <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Description</label>
             <textarea
-              required
-              value={form.description}
-              onChange={e => setForm({ ...form, description: e.target.value })}
-              className="w-full border border-gray-300 px-3 py-2 text-sm outline-none"
               rows={3}
+              className={`w-full border px-3 py-2 text-sm ${input}`}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </div>
 
-          {/* MAIN IMAGE — file only */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Tag</label>
+              <input
+                className={`w-full border px-3 py-2 text-sm ${input}`}
+                value={form.tag}
+                onChange={(e) => setForm({ ...form, tag: e.target.value })}
+                placeholder="BEST SELLER"
+              />
+            </div>
+            <div>
+              <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Offer text</label>
+              <input
+                className={`w-full border px-3 py-2 text-sm ${input}`}
+                value={form.offer_text}
+                onChange={(e) => setForm({ ...form, offer_text: e.target.value })}
+                placeholder="BUY 3 GET 10% OFF"
+              />
+            </div>
+          </div>
+
           <div>
-            <label className="text-[10px] font-mono uppercase text-gray-500 block mb-1">
-              Main Photo (from PC)
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleMainUpload}
-              className="w-full text-sm"
-            />
-            {uploadingMain && (
-              <p className="text-xs text-gray-500 mt-1">Uploading main photo...</p>
-            )}
-            {form.image_url && (
-              <div className="mt-3 relative inline-block">
-                <img
-                  src={form.image_url}
-                  alt="Main"
-                  className="w-28 h-36 object-cover border border-gray-300"
-                />
-                <span className="absolute bottom-1 left-1 bg-black text-white text-[9px] px-1 font-mono">
-                  MAIN
-                </span>
+            <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Category</label>
+            <select
+              className={`w-full border px-3 py-2 text-sm ${input}`}
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            >
+              <option value="tees">Tees</option>
+              <option value="hoodies">Hoodies</option>
+              <option value="oversized">Oversized</option>
+              <option value="kids">Kids</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+
+          {/* Main image */}
+          <div>
+            <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Main photo</label>
+            {mainPreview && (
+              <div className="relative w-32 mb-2">
+                <img src={mainPreview} alt="" className="w-32 h-40 object-cover border border-white/10" />
+                <span className="absolute bottom-1 left-1 bg-black text-white text-[9px] px-1">MAIN</span>
               </div>
             )}
+            <input type="file" accept="image/*" onChange={onMainChange} className="text-sm" />
           </div>
 
-          {/* EXTRA IMAGES — multiple files */}
+          {/* More photos */}
           <div>
-            <label className="text-[10px] font-mono uppercase text-gray-500 block mb-1">
-              More Photos (from PC — multiple allowed)
+            <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>
+              More photos (from PC – multiple allowed)
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleExtraUpload}
-              className="w-full text-sm"
-            />
-            {uploadingExtra && (
-              <p className="text-xs text-gray-500 mt-1">Uploading photos...</p>
-            )}
-            {form.images?.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-3">
-                {form.images.map(url => (
-                  <div key={url} className="relative">
-                    <img
-                      src={url}
-                      alt=""
-                      className="w-20 h-24 object-cover border border-gray-300"
-                    />
-                    {url === form.image_url && (
-                      <span className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[8px] text-center font-mono">
-                        MAIN
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeImage(url)}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 text-white text-xs rounded-full leading-none"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <input type="file" accept="image/*" multiple onChange={onMoreChange} className="text-sm" />
+            <div className="flex flex-wrap gap-2 mt-2">
+              {(form.images || []).map((url) => (
+                <div key={url} className="relative">
+                  <img src={url} alt="" className="w-16 h-20 object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeExistingExtra(url)}
+                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-600 text-white text-xs"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {moreFiles.map((f, i) => (
+                <div key={i} className="text-[10px] font-mono opacity-60 truncate max-w-[80px]">
+                  {f.name}
+                </div>
+              ))}
+            </div>
+            <p className={`text-[11px] mt-2 ${muted}`}>
+              Size guide uses the default chart on the product page. No upload needed.
+            </p>
           </div>
 
-          <p className="text-xs text-gray-500">
-            Size guide uses the default chart on the product page. No upload needed.
-          </p>
-
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
-              checked={form.is_featured}
-              onChange={e => setForm({ ...form, is_featured: e.target.checked })}
+              checked={form.featured}
+              onChange={(e) => setForm({ ...form, featured: e.target.checked })}
             />
             Featured on homepage
           </label>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-2">
             <button
-              type="submit"
-              disabled={saving || uploadingMain || uploadingExtra}
-              className="bg-[#2c6660] text-white px-6 py-2.5 font-mono text-xs uppercase disabled:opacity-50"
+              type="button"
+              disabled={saving}
+              onClick={handleSave}
+              className="bg-[#2c6660] text-white px-5 py-2.5 font-mono text-xs uppercase disabled:opacity-50"
             >
-              {saving ? 'Saving...' : editingId ? 'Update Product' : 'Add Product'}
+              {saving ? 'Saving...' : editId ? 'Update product' : 'Save product'}
             </button>
-            {editingId && (
+            {editId && (
               <button
                 type="button"
-                onClick={cancelEdit}
-                className="border border-gray-400 px-6 py-2.5 font-mono text-xs uppercase"
+                onClick={resetForm}
+                className={`border px-5 py-2.5 font-mono text-xs uppercase ${darkMode ? 'border-white/20' : 'border-black/20'}`}
               >
-                Cancel
+                Cancel edit
               </button>
             )}
           </div>
-        </form>
+        </section>
 
-        <h2 className="font-black uppercase text-lg mb-4">
-          All Products ({products.length})
-        </h2>
-        {loading ? (
-          <p className="font-mono text-sm">Loading...</p>
-        ) : products.length === 0 ? (
-          <p className="text-gray-500">No products yet.</p>
-        ) : (
+        {/* List */}
+        <section>
+          <h2 className="font-black uppercase text-sm mb-4">All products ({products.length})</h2>
           <div className="space-y-3">
-            {products.map(p => (
-              <div
-                key={p.id}
-                className="bg-white border border-[#1b1b18]/15 p-4 flex gap-4 items-center"
-              >
-                <div className="w-16 h-20 bg-gray-100 shrink-0 overflow-hidden">
-                  {p.image_url && (
-                    <img src={p.image_url} alt="" className="w-full h-full object-cover" />
-                  )}
-                </div>
+            {products.map((p) => (
+              <div key={p.id} className={`border p-3 flex gap-3 items-center ${card}`}>
+                {p.image_url ? (
+                  <img src={p.image_url} alt="" className="w-14 h-16 object-cover shrink-0" />
+                ) : (
+                  <div className="w-14 h-16 bg-black/20 shrink-0" />
+                )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold truncate">{p.name}</p>
-                  <p className="text-sm font-mono text-[#2c6660]">
-                    ₹{Number(p.price).toLocaleString('en-IN')}
-                    {p.compare_at_price && (
-                      <span className="text-gray-400 line-through ml-2 text-xs">
-                        ₹{Number(p.compare_at_price).toLocaleString('en-IN')}
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {p.category || '—'} · Stock: {p.stock}
-                    {p.images?.length > 1 ? ` · ${p.images.length} photos` : ''}
+                  <p className="font-semibold text-sm uppercase truncate">{p.name}</p>
+                  <p className={`text-xs font-mono ${muted}`}>
+                    ₹{Number(p.price || 0).toLocaleString('en-IN')}
+                    {p.slug ? ` · ${p.slug}` : ''}
                   </p>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => startEdit(p)}
-                    className="text-xs font-mono uppercase border px-3 py-1.5 hover:bg-[#1b1b18] hover:text-white transition"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => deleteProduct(p.id)}
-                    className="text-xs font-mono uppercase border border-red-400 text-red-600 px-3 py-1.5 hover:bg-red-600 hover:text-white transition"
-                  >
-                    Delete
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => startEdit(p)}
+                  className="text-xs font-mono underline"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(p.id)}
+                  className="text-xs font-mono text-red-500 underline"
+                >
+                  Delete
+                </button>
               </div>
             ))}
           </div>
-        )}
+        </section>
       </main>
     </div>
   )
