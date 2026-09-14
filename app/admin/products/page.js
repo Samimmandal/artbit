@@ -24,7 +24,8 @@ const emptyForm = {
   category: 'tees',
   featured: false,
   image_url: '',
-  images: []
+  images: [],
+  stock: 100
 }
 
 export default function AdminProductsPage() {
@@ -107,7 +108,11 @@ export default function AdminProductsPage() {
     let imgs = []
     if (Array.isArray(p.images)) imgs = p.images
     else if (typeof p.images === 'string') {
-      try { imgs = JSON.parse(p.images) } catch { imgs = [] }
+      try {
+        imgs = JSON.parse(p.images)
+      } catch {
+        imgs = []
+      }
     }
     setForm({
       name: p.name || '',
@@ -119,7 +124,8 @@ export default function AdminProductsPage() {
       category: p.category || 'tees',
       featured: !!p.featured,
       image_url: p.image_url || '',
-      images: imgs
+      images: imgs,
+      stock: p.stock ?? 100
     })
     setMainPreview(p.image_url || '')
     setMainFile(null)
@@ -164,7 +170,8 @@ export default function AdminProductsPage() {
         featured: !!form.featured,
         image_url: imageUrl || null,
         images: extraImages,
-        sizes: ['S', 'M', 'L', 'XL', 'XXL']
+        sizes: ['S', 'M', 'L', 'XL', 'XXL'],
+        stock: Number(form.stock) >= 0 ? Number(form.stock) : 100
       }
 
       let error
@@ -268,6 +275,17 @@ export default function AdminProductsPage() {
                 onChange={(e) => setForm({ ...form, compare_at_price: e.target.value })}
               />
             </div>
+          </div>
+
+          <div>
+            <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Stock *</label>
+            <input
+              type="number"
+              min="0"
+              className={`w-full border px-3 py-2 text-sm ${input}`}
+              value={form.stock}
+              onChange={(e) => setForm({ ...form, stock: e.target.value })}
+            />
           </div>
 
           <div>
@@ -401,6 +419,7 @@ export default function AdminProductsPage() {
                   <p className={`text-xs font-mono ${muted}`}>
                     ₹{Number(p.price || 0).toLocaleString('en-IN')}
                     {p.slug ? ` · ${p.slug}` : ''}
+                    {p.stock != null ? ` · stock ${p.stock}` : ''}
                   </p>
                 </div>
                 <button type="button" onClick={() => startEdit(p)} className="text-xs font-mono underline">
