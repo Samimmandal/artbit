@@ -344,9 +344,22 @@ export default function ProductDetails() {
     setSubmitting(false)
   }
 
-  const images = product
-    ? (product.images?.length ? product.images.slice(0, 5) : (product.image_url ? [product.image_url] : []))
-    : []
+  // FIXED: main photo (image_url) first, then extra images
+  const images = (() => {
+    if (!product) return []
+    const list = []
+    if (product.image_url) list.push(product.image_url)
+    let extras = product.images
+    if (typeof extras === 'string') {
+      try { extras = JSON.parse(extras) } catch { extras = [] }
+    }
+    if (Array.isArray(extras)) {
+      extras.forEach((img) => {
+        if (img && img !== product.image_url && !list.includes(img)) list.push(img)
+      })
+    }
+    return list.slice(0, 5)
+  })()
 
   const prevImage = () => {
     if (images.length < 2) return
@@ -720,31 +733,7 @@ export default function ProductDetails() {
               <p className={muted}>Size: {selectedSize || '—'} · Color: {selectedColor || '—'} · Qty: {orderForm.quantity}</p>
               <div className="mt-2 space-y-0.5">
                 <div className="flex justify-between"><span>Subtotal</span><span className="font-mono">₹{subtotal.toLocaleString('en-IN')}</span></div>
-                {appliedCoupon && <div className="flex justify-between text-[#2c6660]"><span>Discount ({appliedCoupon.code})</span><span className="font-mono">−₹{orderDiscount.toLocaleString('en-IN')}</span></div>}
-                <div className="flex justify-between font-semibold"><span>Total</span><span className="font-mono text-[#2c6660]">₹{orderTotal.toLocaleString('en-IN')}</span></div>
-              </div>
-            </div>
-            <div className={`${card} border p-3 mb-4`}>
-              <p className="text-xs font-mono uppercase text-gray-500 mb-2">Coupon Code</p>
-              {appliedCoupon ? (
-                <div className="flex justify-between items-center">
-                  <span className="font-mono text-sm text-[#2c6660] font-bold">{appliedCoupon.code} applied</span>
-                  <button type="button" onClick={removeCoupon} className="text-xs underline text-red-600">Remove</button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input value={couponCode} onChange={e => setCouponCode(e.target.value.toUpperCase())} placeholder="e.g. ARTBIT10" className={`flex-1 border px-2 py-1.5 text-sm outline-none bg-transparent uppercase ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
-                  <button type="button" onClick={applyCoupon} className="bg-[#000000] text-white px-3 py-1.5 text-xs font-mono uppercase">Apply</button>
-                </div>
-              )}
-              {couponError && <p className="text-xs text-red-600 mt-1">{couponError}</p>}
-            </div>
-            <form className="space-y-4">
-              <input required placeholder="Full Name *" value={orderForm.customer_name} onChange={e => setOrderForm({ ...orderForm, customer_name: e.target.value })} className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
-              <input required type="email" placeholder="Email *" value={orderForm.customer_email} onChange={e => setOrderForm({ ...orderForm, customer_email: e.target.value })} className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
-              <input required placeholder="Phone *" value={orderForm.customer_phone} onChange={e => setOrderForm({ ...orderForm, customer_phone: e.target.value })} className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
-              <textarea required placeholder="Delivery Address *" value={orderForm.address} onChange={e => setOrderForm({ ...orderForm, address: e.target.value })} className={`w-full border p-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} rows={3} />
-              <input type="number" min="1" max={product.stock || 10} value={orderForm.quantity} onChange={e => setOrderForm({ ...orderForm, quantity: parseInt(e.target.value) || 1 })} className={`w-full border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
+                {appliedCoupon && <div className="flex justify-between text-[#2c6660]"><span> border-b py-2 outline-none bg-transparent ${darkMode ? 'border-[#ffffff]/30' : 'border-gray-300'}`} />
               <div className="grid grid-cols-1 gap-2 pt-2">
                 <button type="button" disabled={submitting} onClick={handlePayOnline} className="w-full bg-[#2c6660] text-white py-3 font-mono text-sm uppercase disabled:opacity-50">
                   {submitting ? 'Processing...' : `Pay Online ₹${orderTotal.toLocaleString('en-IN')}`}
