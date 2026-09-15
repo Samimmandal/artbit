@@ -1,0 +1,39 @@
+export default function manifest() {
+  return {
+    name: 'Artbit',
+    short_name: 'Artbit',
+    description: 'Small-batch DTF print house — custom printed apparel',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    background_color: '#000000',
+    theme_color: '#000000',
+    orientation: 'portrait-primary',
+    icons: [
+      {
+        src: '/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+      {
+        src: '/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
+  }
+}
