@@ -351,7 +351,6 @@ export default function ProductDetails() {
     setSubmitting(false)
   }
 
-  // Main photo first, then extra images
   const images = (() => {
     if (!product) return []
     const list = []
@@ -620,7 +619,9 @@ export default function ProductDetails() {
               </p>
             )}
             {product.description && (
-              <p className={`${muted} text-sm leading-relaxed mb-6`}>{product.description}</p>
+              <p className={`${muted} text-sm leading-relaxed mb-6 whitespace-pre-line`}>
+                {product.description}
+              </p>
             )}
 
             {colors.length > 0 && (
