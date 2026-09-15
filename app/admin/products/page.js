@@ -28,7 +28,14 @@ const emptyForm = {
   image_url: '',
   images: [],
   stock: 100,
-  sizes: ['S', 'M', 'L']
+  sizes: ['S', 'M', 'L'],
+  fabric: '',
+  fit: '',
+  neck: '',
+  sleeve: '',
+  hemline: '',
+  design_note: '',
+  colors: ''
 }
 
 export default function AdminProductsPage() {
@@ -117,11 +124,11 @@ export default function AdminProductsPage() {
   }
 
   const parseSizes = (raw) => {
-    if (Array.isArray(raw)) return raw
+    if (Array.isArray(raw)) return raw.map(String)
     if (typeof raw === 'string') {
       try {
         const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) return parsed
+        if (Array.isArray(parsed)) return parsed.map(String)
       } catch {
         return raw.split(',').map((s) => s.trim()).filter(Boolean)
       }
@@ -152,7 +159,14 @@ export default function AdminProductsPage() {
       image_url: p.image_url || '',
       images: imgs,
       stock: p.stock ?? 100,
-      sizes: parseSizes(p.sizes)
+      sizes: parseSizes(p.sizes),
+      fabric: p.fabric || '',
+      fit: p.fit || '',
+      neck: p.neck || '',
+      sleeve: p.sleeve || '',
+      hemline: p.hemline || '',
+      design_note: p.design_note || '',
+      colors: p.colors || ''
     })
     setMainPreview(p.image_url || '')
     setMainFile(null)
@@ -202,7 +216,14 @@ export default function AdminProductsPage() {
         image_url: imageUrl || null,
         images: extraImages,
         sizes: form.sizes,
-        stock: Number(form.stock) >= 0 ? Number(form.stock) : 0
+        stock: Number(form.stock) >= 0 ? Number(form.stock) : 0,
+        fabric: form.fabric || null,
+        fit: form.fit || null,
+        neck: form.neck || null,
+        sleeve: form.sleeve || null,
+        hemline: form.hemline || null,
+        design_note: form.design_note || null,
+        colors: form.colors || null
       }
 
       let error
@@ -348,6 +369,78 @@ export default function AdminProductsPage() {
             <p className={`text-[11px] mt-2 ${muted}`}>
               Selected: {(form.sizes || []).join(', ') || 'none'}
             </p>
+          </div>
+
+          <div>
+            <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Colors (comma separated)</label>
+            <input
+              className={`w-full border px-3 py-2 text-sm ${input}`}
+              value={form.colors}
+              onChange={(e) => setForm({ ...form, colors: e.target.value })}
+              placeholder="Black, White, Navy"
+            />
+          </div>
+
+          <div>
+            <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Fabric</label>
+            <input
+              className={`w-full border px-3 py-2 text-sm ${input}`}
+              value={form.fabric}
+              onChange={(e) => setForm({ ...form, fabric: e.target.value })}
+              placeholder="100% Cotton"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Fit</label>
+              <input
+                className={`w-full border px-3 py-2 text-sm ${input}`}
+                value={form.fit}
+                onChange={(e) => setForm({ ...form, fit: e.target.value })}
+                placeholder="Oversized / Regular"
+              />
+            </div>
+            <div>
+              <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Neck</label>
+              <input
+                className={`w-full border px-3 py-2 text-sm ${input}`}
+                value={form.neck}
+                onChange={(e) => setForm({ ...form, neck: e.target.value })}
+                placeholder="Crew neck"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Sleeve</label>
+              <input
+                className={`w-full border px-3 py-2 text-sm ${input}`}
+                value={form.sleeve}
+                onChange={(e) => setForm({ ...form, sleeve: e.target.value })}
+                placeholder="Short / Long"
+              />
+            </div>
+            <div>
+              <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Hemline</label>
+              <input
+                className={`w-full border px-3 py-2 text-sm ${input}`}
+                value={form.hemline}
+                onChange={(e) => setForm({ ...form, hemline: e.target.value })}
+                placeholder="Straight / Curved"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={`block text-xs font-mono uppercase mb-1 ${muted}`}>Design note</label>
+            <input
+              className={`w-full border px-3 py-2 text-sm ${input}`}
+              value={form.design_note}
+              onChange={(e) => setForm({ ...form, design_note: e.target.value })}
+              placeholder="Front & back print"
+            />
           </div>
 
           <div>
