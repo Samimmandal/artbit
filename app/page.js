@@ -4,6 +4,36 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import Link from 'next/link'
 
+function parseSizes(raw) {
+  if (!raw) return []
+  if (Array.isArray(raw)) {
+    return raw
+      .map((s) => String(s).replace(/["'\[\]]/g, '').trim())
+      .filter(Boolean)
+  }
+  if (typeof raw === 'string') {
+    try {
+      const p = JSON.parse(raw)
+      if (Array.isArray(p)) {
+        return p
+          .map((s) => String(s).replace(/["'\[\]]/g, '').trim())
+          .filter(Boolean)
+      }
+    } catch {}
+    return raw
+      .replace(/[\[\]"]/g, '')
+      .split(/[,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
+function formatSizes(raw) {
+  const arr = parseSizes(raw)
+  return arr.length ? arr.join(',') : ''
+}
+
 export default function HomePage() {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -199,7 +229,7 @@ export default function HomePage() {
                   </div>
                   <div className="p-4">
                     <h3 className="font-semibold text-[15px] mb-1">{p.name}</h3>
-                    <p className={`text-xs ${muted} mb-2`}>{p.sizes || 'S · M · L · XL'}</p>
+                    <p className={`text-xs ${muted} mb-2`}>{formatSizes(p.sizes) || 'S,M,L,XL'}</p>
                     <div className="flex items-center gap-2">
                       <p className="font-mono text-sm text-[#2c6660]">₹{Number(p.price).toLocaleString('en-IN')}</p>
                       {p.compare_at_price && Number(p.compare_at_price) > Number(p.price) && (

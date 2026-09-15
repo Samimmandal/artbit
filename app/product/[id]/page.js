@@ -5,6 +5,31 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import Link from 'next/link'
 
+function parseSizes(raw) {
+  if (!raw) return []
+  if (Array.isArray(raw)) {
+    return raw
+      .map((s) => String(s).replace(/["'\[\]]/g, '').trim())
+      .filter(Boolean)
+  }
+  if (typeof raw === 'string') {
+    try {
+      const p = JSON.parse(raw)
+      if (Array.isArray(p)) {
+        return p
+          .map((s) => String(s).replace(/["'\[\]]/g, '').trim())
+          .filter(Boolean)
+      }
+    } catch {}
+    return raw
+      .replace(/[\[\]"]/g, '')
+      .split(/[,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
 export default function ProductDetails() {
   const { id } = useParams()
   const router = useRouter()
@@ -72,12 +97,10 @@ export default function ProductDetails() {
     } else {
       setProduct(data)
       setSelectedImage(0)
-      if (data.sizes) {
-        const sizes = data.sizes.split(',').map(s => s.trim())
-        setSelectedSize(sizes[0] || '')
-      }
+      const sizes = parseSizes(data.sizes)
+      if (sizes.length) setSelectedSize(sizes[0])
       if (data.colors) {
-        const cols = data.colors.split(',').map(c => c.trim())
+        const cols = String(data.colors).split(',').map(c => c.trim()).filter(Boolean)
         setSelectedColor(cols[0] || '')
       }
       const { data: rel } = await supabase.from('products').select('*').neq('id', id).limit(4)
@@ -113,7 +136,7 @@ export default function ProductDetails() {
     return true
   }
 
-    const addToCart = async () => {
+  const addToCart = async () => {
     if (!requireLogin()) return
     setCartLoading(true)
     const { data: { user: u } } = await supabase.auth.getUser()
@@ -372,8 +395,8 @@ export default function ProductDetails() {
     )
   }
 
-  const sizes = product.sizes ? product.sizes.split(',').map(s => s.trim()) : []
-  const colors = product.colors ? product.colors.split(',').map(c => c.trim()) : []
+  const sizes = parseSizes(product.sizes)
+  const colors = product.colors ? String(product.colors).split(',').map(c => c.trim()).filter(Boolean) : []
   const price = Number(product.price)
   const compare = product.compare_at_price ? Number(product.compare_at_price) : null
   const discountPct = compare && compare > price ? Math.round(((compare - price) / compare) * 100) : null
