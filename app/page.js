@@ -39,11 +39,13 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
   const [darkMode, setDarkMode] = useState(false)
+  const [homepageArt, setHomepageArt] = useState(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('artbit-theme')
     if (saved === 'dark') setDarkMode(true)
     fetchProducts()
+    fetchHomepageArt()
     checkUser()
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null)
@@ -94,6 +96,17 @@ export default function HomePage() {
       .limit(4)
     setProducts(data || [])
     setLoading(false)
+  }
+
+  const fetchHomepageArt = async () => {
+    const { data } = await supabase
+      .from('homepage_art')
+      .select('*')
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    setHomepageArt(data)
   }
 
   const bg = darkMode ? 'bg-[#000000]' : 'bg-[#f2ede1]'
@@ -256,8 +269,16 @@ export default function HomePage() {
               Start Your Design
             </a>
           </div>
-          <div className="aspect-square bg-[repeating-linear-gradient(45deg,#2c6660_0_2px,transparent_2px_22px)] bg-[#e9e1d1] relative flex items-center justify-center">
-            <span className="bg-[#f2ede1] text-[#000000] px-4 py-2 font-mono text-xs uppercase tracking-wider">Your Art Here</span>
+          <div className="aspect-square bg-[repeating-linear-gradient(45deg,#2c6660_0_2px,transparent_2px_22px)] bg-[#e9e1d1] relative flex items-center justify-center overflow-hidden">
+            {homepageArt?.image_url ? (
+              <img
+                src={homepageArt.image_url}
+                alt={homepageArt.title || 'Your Art Here'}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="bg-[#f2ede1] text-[#000000] px-4 py-2 font-mono text-xs uppercase tracking-wider">Your Art Here</span>
+            )}
           </div>
         </div>
       </section>
